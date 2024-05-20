@@ -47,7 +47,7 @@ fn lex(input: []const u8, allocator: std.mem.Allocator) !*Lexer {
             ')' => ast.TokenStruct{ .RParen = {} },
             else => blk: {
                 if (input[index] > '0' and input[index] < '9') {
-                    var parsed = try std.fmt.parseInt(u32, input[index .. index + 1], 10);
+                    var parsed = try std.fmt.parseInt(i32, input[index .. index + 1], 10);
                     var tokenStruct = ast.TokenStruct{ .Integer = parsed };
                     break :blk tokenStruct;
                 } else {
@@ -94,13 +94,19 @@ fn parsePrefix(lexer: *Lexer, allocator: std.mem.Allocator) !*ast.TreeNode {
     var tokenOpt = lexer.currentToken;
     var prefixParsed = try allocator.create(ast.TreeNode);
     if (tokenOpt) |token| {
-        std.debug.assert(@as(ast.TokenType, token.*) == ast.TokenType.Integer or @as(ast.TokenType, token.*) == ast.TokenType.LParen);
         if (@as(ast.TokenType, token.*) == ast.TokenType.Integer) {
             prefixParsed.* = ast.TreeNode{ .Integer = token.Integer };
         } else if (@as(ast.TokenType, token.*) == ast.TokenType.LParen) {
             _ = Lexer.nextToken(lexer);
             var parsedBracketExpression = try parse(lexer, allocator, 0);
             prefixParsed = parsedBracketExpression;
+        } else if (@as(ast.TokenType, token.*) == ast.TokenType.Operator) {
+            std.debug.assert(token.Operator == ast.OperatorType.Minus);
+            var nextToken = lexer.nextToken();
+            std.debug.assert(@as(ast.TokenType, nextToken.?.*) == ast.TokenType.Integer);
+            prefixParsed.* = ast.TreeNode{ .Integer = -1 * nextToken.?.Integer };
+        } else {
+            unreachable;
         }
         return prefixParsed;
     } else {
@@ -161,7 +167,7 @@ fn parse(lexer: *Lexer, allocator: std.mem.Allocator, currentPrecedence: u32) (P
     return parsed;
 }
 
-pub fn eval(root: *ast.TreeNode) u32 {
+pub fn eval(root: *ast.TreeNode) i32 {
     var rootDerefed = root.*;
     switch (rootDerefed) {
         .Integer => |integer| {
@@ -174,7 +180,7 @@ pub fn eval(root: *ast.TreeNode) u32 {
                 .Plus => lhs + rhs,
                 .Minus => lhs - rhs,
                 .Multiply => lhs * rhs,
-                .Divide => lhs / rhs,
+                .Divide => @divTrunc(lhs, rhs),
             };
             return result;
         },
@@ -263,6 +269,16 @@ test "test eval with paren" {
     var lexer = try lex(input, allocator);
     var parsed = try parse(lexer, allocator, 0);
     var evaled = eval(parsed);
-    std.debug.print("evaled = {}", .{evaled});
     std.debug.assert(evaled == 9);
+}
+
+test "test eval with unary negatives" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var allocator = arena.allocator();
+    defer arena.deinit();
+    var input = "(1+2)*-3";
+    var lexer = try lex(input, allocator);
+    var parsed = try parse(lexer, allocator, 0);
+    var evaled = eval(parsed);
+    std.debug.assert(evaled == -9);
 }

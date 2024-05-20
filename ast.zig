@@ -9,7 +9,7 @@ pub const TokenType = enum { Operator, Integer, Invalid, LParen, RParen };
 
 pub const TokenStruct = union(TokenType) {
     Operator: OperatorType,
-    Integer: u32,
+    Integer: i32,
     Invalid: void,
     LParen: void,
     RParen: void,
@@ -28,5 +28,5 @@ pub const BinOpStruct = struct {
 
 pub const TreeNode = union(NodeType) {
     BinOp: BinOpStruct,
-    Integer: u32, // only unsigned integers for now
+    Integer: i32, // only unsigned integers for now
 };
