@@ -5,12 +5,14 @@ pub const OperatorType = enum {
     Divide,
 };
 
-pub const TokenType = enum { Operator, Integer, Invalid };
+pub const TokenType = enum { Operator, Integer, Invalid, LParen, RParen };
 
 pub const TokenStruct = union(TokenType) {
     Operator: OperatorType,
     Integer: u32,
     Invalid: void,
+    LParen: void,
+    RParen: void,
 };
 
 pub const NodeType = enum {

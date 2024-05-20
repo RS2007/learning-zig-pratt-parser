@@ -43,6 +43,8 @@ fn lex(input: []const u8, allocator: std.mem.Allocator) !*Lexer {
             '-' => ast.TokenStruct{ .Operator = ast.OperatorType.Minus },
             '*' => ast.TokenStruct{ .Operator = ast.OperatorType.Multiply },
             '/' => ast.TokenStruct{ .Operator = ast.OperatorType.Divide },
+            '(' => ast.TokenStruct{ .LParen = {} },
+            ')' => ast.TokenStruct{ .RParen = {} },
             else => blk: {
                 if (input[index] > '0' and input[index] < '9') {
                     var parsed = try std.fmt.parseInt(u32, input[index .. index + 1], 10);
@@ -78,6 +80,12 @@ fn getPrecedence(token: *ast.TokenStruct) u32 {
         .Invalid => {
             return 0;
         },
+        .LParen => {
+            return 0;
+        },
+        .RParen => {
+            return 0;
+        },
     }
     return 0;
 }
@@ -86,8 +94,14 @@ fn parsePrefix(lexer: *Lexer, allocator: std.mem.Allocator) !*ast.TreeNode {
     var tokenOpt = lexer.currentToken;
     var prefixParsed = try allocator.create(ast.TreeNode);
     if (tokenOpt) |token| {
-        std.debug.assert(@as(ast.TokenType, token.*) == ast.TokenType.Integer);
-        prefixParsed.* = ast.TreeNode{ .Integer = token.Integer };
+        std.debug.assert(@as(ast.TokenType, token.*) == ast.TokenType.Integer or @as(ast.TokenType, token.*) == ast.TokenType.LParen);
+        if (@as(ast.TokenType, token.*) == ast.TokenType.Integer) {
+            prefixParsed.* = ast.TreeNode{ .Integer = token.Integer };
+        } else if (@as(ast.TokenType, token.*) == ast.TokenType.LParen) {
+            _ = Lexer.nextToken(lexer);
+            var parsedBracketExpression = try parse(lexer, allocator, 0);
+            prefixParsed = parsedBracketExpression;
+        }
         return prefixParsed;
     } else {
         return ParserError.ParseError;
@@ -98,6 +112,9 @@ const ParserError = error{ ParseError, OutOfMemory };
 
 fn parseInfix(lexer: *Lexer, lhs: *ast.TreeNode, allocator: std.mem.Allocator) !*ast.TreeNode {
     if (lexer.currentToken) |currentToken| {
+        if (@as(ast.TokenType, currentToken.*) == ast.TokenType.RParen) {
+            return lhs;
+        }
         _ = Lexer.nextToken(lexer);
         const op = currentToken.Operator;
         const derefedToken = currentToken.*;
@@ -105,6 +122,8 @@ fn parseInfix(lexer: *Lexer, lhs: *ast.TreeNode, allocator: std.mem.Allocator) !
             .Operator => try parse(lexer, allocator, 1),
             .Integer => null,
             .Invalid => null,
+            .LParen => null,
+            .RParen => null,
         };
         if (rhsOpt) |rhs| {
             var parsed = try allocator.create(ast.TreeNode);
@@ -234,4 +253,16 @@ test "test eval 3" {
     var parsed = try parse(lexer, allocator, 0);
     var evaled = eval(parsed);
     std.debug.assert(evaled == 15);
+}
+
+test "test eval with paren" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var allocator = arena.allocator();
+    defer arena.deinit();
+    var input = "(1+2)*3";
+    var lexer = try lex(input, allocator);
+    var parsed = try parse(lexer, allocator, 0);
+    var evaled = eval(parsed);
+    std.debug.print("evaled = {}", .{evaled});
+    std.debug.assert(evaled == 9);
 }
