@@ -125,7 +125,7 @@ fn parseInfix(lexer: *Lexer, lhs: *ast.TreeNode, allocator: std.mem.Allocator) !
         const op = currentToken.Operator;
         const derefedToken = currentToken.*;
         var rhsOpt = switch (derefedToken) {
-            .Operator => try parse(lexer, allocator, 1),
+            .Operator => try parse(lexer, allocator, getPrecedence(currentToken)),
             .Integer => null,
             .Invalid => null,
             .LParen => null,
@@ -153,7 +153,7 @@ fn parse(lexer: *Lexer, allocator: std.mem.Allocator, currentPrecedence: u32) (P
     const peekedTokenOpt = lexer.peekToken();
     if (peekedTokenOpt) |peekToken| {
         var precedence = getPrecedence(peekToken);
-        while ((precedence > currentPrecedence) and (lexer.currentIndex < lexer.input.len)) {
+        while ((precedence > currentPrecedence)) {
             const nextTokenOpt = Lexer.nextToken(lexer);
             if (nextTokenOpt) |_| {
                 parsed = try parseInfix(lexer, parsed, allocator);
